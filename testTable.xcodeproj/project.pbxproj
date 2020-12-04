@@ -92,7 +92,6 @@
 				2C8095D71A088F705880353D /* Pods-testTable.debug.xcconfig */,
 				63B54E67044CCCEE8FEB1590 /* Pods-testTable.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -107,6 +106,7 @@
 				9A1C9C5B22E5F0AC005390C9 /* Sources */,
 				9A1C9C5C22E5F0AC005390C9 /* Frameworks */,
 				9A1C9C5D22E5F0AC005390C9 /* Resources */,
+				9ADF1421257A26340018BF31 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -163,6 +163,23 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		9ADF1421257A26340018BF31 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\n#取当前时间字符串添加到文件结尾\nnowTime=$(date +%m.%d %H:%Ms)\n#当前工程绝对路径\nPROJECT_DIR=$(pwd)\nconvertPath=`which convert`\necho ${PROJECT_DIR}\n\necho ${convertPath}\n# 判断convertPath文件是否存在 如果不错在就提示安装imagemagick和ghostscript\nif [[ ! -f ${convertPath} || -z ${convertPath} ]]; then\n    echo \"您需要先安装ImageMagick和ghostscript \\nwarning: Skipping Icon versioning, you need to install ImageMagick and ghostscript (fonts) first, you can use brew to simplify process: \\nbrew install imagemagick \\nbrew install ghostscript\"\n    exit -1;\nfi\n\n\n# 说明 拼接所需要显示的内容\n# version    app-版本号\nversion=`/usr/libexec/PlistBuddy -c \"Print CFBundleShortVersionString\" \"${CONFIGURATION_BUILD_DIR}/${INFOPLIST_PATH}\"`\n# build_num  app-构建版本号\nbuild_num=`/usr/libexec/PlistBuddy -c \"Print CFBundleVersion\" \"${CONFIGURATION_BUILD_DIR}/${INFOPLIST_PATH}\"`\n# 检查当前所处Git分支\nif [ -d .git ] || git rev-parse --git-dir > /dev/null 2>&1; then\n    # commit     git-提交哈希值\n    commit=`git rev-parse --short HEAD`\n    # branch     git-分支名\n    branch=`git rev-parse --abbrev-ref HEAD`\nelse\n    # commit     git-提交哈希值\n    commit=`hg identify -i`\n    # branch     git-分支名\n    branch=`hg identify -b`\nfi;\n\n\nshopt -s extglob\nbuild_num=\"${build_num##*( )}\"\nshopt -u extglob\n# 拼接所要显示的内容\n#caption=\"${version}($build_num)\\n${branch}\\n${commit}\"\ncaption=\"${version}($build_num)\\n${branch}\\n${nowTime}\"\necho $caption\n\n\nfunction processIcon() {\n    base_file=$1\n    temp_path=$2\n    dest_path=$3\n    if [[ ! -e $base_file ]]; then\n        echo \"error: file does not exist: ${base_file}\"\n        exit -1;\n    fi\n    if [[ -z $temp_path ]]; then\n        echo \"error: temp_path does not exist: ${temp_path}\"\n        exit -1;\n    fi\n    if [[ -z $dest_path ]]; then\n        echo \"error: dest_path does not exist: ${dest_path}\"\n        exit -1;\n    fi\n    file_name=$(basename \"$base_file\")\n    final_file_path=\"${dest_path}/${file_name}\"\n    base_tmp_normalizedFileName=\"${file_name%.*}-normalized.${file_name##*.}\"\n    base_tmp_normalizedFilePath=\"${temp_path}/${base_tmp_normalizedFileName}\"\n\n    # Normalize 正常化\n    echo \"Reverting optimized PNG to normal\\n将优化的PNG恢复为正常\"\n    echo \"xcrun -sdk iphoneos pngcrush -revert-iphone-optimizations -q '${base_file}' '${base_tmp_normalizedFilePath}'\"\n    xcrun -sdk iphoneos pngcrush -revert-iphone-optimizations -q \"${base_file}\" \"${base_tmp_normalizedFilePath}\"\n    width=`identify -format %w \"${base_tmp_normalizedFilePath}\"`\n    height=`identify -format %h \"${base_tmp_normalizedFilePath}\"`\n    # 文字条高度和位置\n    band_height=$((($height * 50) / 100))\n    band_position=$(($height - $band_height))\n    # 文字位置\n    text_position=$(($band_position - 8))\n    point_size=$(((12 * $width) / 100))\n    echo \"Image dimensions ($width x $height) - band height $band_height @ $band_position - point size $point_size\"\n    #\n    # blur band and text\n    # 模糊和文字\n    #\n    # 添加高斯模糊  截取相应部分\n    convert \"${base_tmp_normalizedFilePath}\" -blur 10x8 /tmp/blurred.png\n    convert /tmp/blurred.png -gamma 0 -fill white -draw \"rectangle 0,$band_position,$width,$height\" /tmp/mask.png\n    # 添加文字\n    convert -size ${width}x${band_height} xc:none -fill 'rgba(0,0,0,0.2)' -draw \"rectangle 0,0,$width,$band_height\" /tmp/labels-base.png\n    convert -background none -size ${width}x${band_height} -pointsize $point_size -fill white -gravity center -gravity South caption:\"$caption\" /tmp/labels.png\n    # 合成文字和文字条\n    convert \"${base_tmp_normalizedFilePath}\" /tmp/blurred.png /tmp/mask.png -composite /tmp/temp.png\n    rm /tmp/blurred.png\n    rm /tmp/mask.png\n    #\n    # compose final image\n    # 合成最终图像\n    #\n    filename=New\"${base_file}\"\n    convert /tmp/temp.png /tmp/labels-base.png -geometry +0+$band_position -composite /tmp/labels.png -geometry +0+$text_position -geometry +${w}-${h} -composite -alpha remove \"${final_file_path}\"\n    # clean up\n    rm /tmp/temp.png\n    rm /tmp/labels-base.png\n    rm /tmp/labels.png\n    rm \"${base_tmp_normalizedFilePath}\"\n    echo \"Overlayed ${final_file_path}\"\n}\n\n\n# Process all app icons and create the corresponding internal icons\n# 处理所有应用程序图标并创建相应的内部图标\n# icons_dir=\"${SRCROOT}/Images.xcassets/AppIcon.appiconset\"\n#工程名 自动获取，注意修改工程后缀名 xcodeproj/xcworkspace\nproject_name=$(find . -name *.xcodeproj | awk -F \"[/.]\" '{print $(NF-1)}')\nicons_path=\"${PROJECT_DIR}/${project_name}/Assets.xcassets/AppIcon.appiconset\"\nicons_dest_path=\"${PROJECT_DIR}/${project_name}/Assets.xcassets/AppIcon-Internal.appiconset\"\n#icons_set=`basename \"${icons_path}\"`\ntmp_path=\"${TEMP_DIR}/IconVersioning\"\necho \"icons_path: ${icons_path}\"\necho \"icons_dest_path: ${icons_dest_path}\"\nmkdir -p \"${tmp_path}\"\nif [[ $icons_dest_path == \"\\\\\" ]]; then\n    echo \"error: destination file path can't be the root directory\"\n    exit -1;\nfi\nrm -rf \"${icons_dest_path}\"\ncp -rf \"${icons_path}\" \"${icons_dest_path}\"\n# Reference: https://askubuntu.com/a/343753\nfind \"${icons_path}\" -type f -name \"*.png\" -print0 |\nwhile IFS= read -r -d '' file; do\n    echo \"$file\"\n    processIcon \"${file}\" \"${tmp_path}\" \"${icons_dest_path}\"\ndone\n";
+		};
 		A1017CD6BEAF7E42FA28C10E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -336,7 +353,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 2C8095D71A088F705880353D /* Pods-testTable.debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon-Internal";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 837YNTC66R;
 				INFOPLIST_FILE = testTable/Info.plist;
@@ -354,7 +371,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 63B54E67044CCCEE8FEB1590 /* Pods-testTable.release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon-Internal";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 837YNTC66R;
 				INFOPLIST_FILE = testTable/Info.plist;
