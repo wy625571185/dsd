@@ -1,0 +1,84 @@
+# Xcode
+.DS_Store
+.lock
+
+## Build generated
+build/
+DerivedData
+
+## Various settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata
+xcshareddata
+xcbaselines
+# 暂时注释
+#*.xcworkspace
+!default.xcworkspace
+
+## Other
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+
+## Obj-C/Swift specific
+*.hmap
+*.ipa
+.idea/
+
+## CocoaPods
+Pods/
+
+## Carthage
+Carthage/Checkouts
+Carthage/Build
+Cartfile.resolved
+
+# maven ignore
+target/
+*.jar
+*.war
+*.ear
+*.zip
+*.tar
+*.tar.gz
+
+# eclipse ignore
+.settings/
+.project
+.classpath
+
+# idea ignore
+.idea/
+*.ipr
+*.iml
+*.iws
+
+# temp ignore
+*~
+*.log
+*.cache
+*.diff
+*.patch
+*.tmp
+*.java~
+*.properties~
+*.xml~
+*.bak
+
+# system ignore
+Thumbs.db
+.metadata
+
+#nodejs
+node_modules/
+Breakpoints_v2.xcbkptlist
+
+fms_driver_swift/fms_driver/fms_driver.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
